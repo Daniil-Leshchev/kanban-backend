@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, List
-from models import Priority, MemberRole
+from app.models import Priority, MemberRole
 
 
 class UserBase(BaseModel):

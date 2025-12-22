@@ -1,28 +1,52 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+
+from app.dependencies.db import get_db
 from app import models, schemas
 
 router = APIRouter()
-def get_db(): db = SessionLocal(); yield db; db.close()
 
 
 @router.post("/", response_model=schemas.TaskAssignee)
-def add_assignee(data: schemas.TaskAssignee, db: Session = Depends(get_db)):
-    obj = models.TaskAssignee(**data.dict())
+async def add_assignee(
+    data: schemas.TaskAssignee,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = models.TaskAssignee(**data.model_dump())
     db.add(obj)
-    db.commit()
+
+    await db.commit()
+    await db.refresh(obj)
+
     return obj
 
 
 @router.get("/task/{task_id}", response_model=list[schemas.TaskAssignee])
-def list_assignees(task_id: str, db: Session = Depends(get_db)):
-    return db.query(models.TaskAssignee).filter_by(task_id=task_id).all()
+async def list_assignees(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.TaskAssignee).where(
+            models.TaskAssignee.task_id == task_id
+        )
+    )
+    return result.scalars().all()
 
 
 @router.delete("/{task_id}/{user_id}")
-def remove_assignee(task_id: str, user_id: str, db: Session = Depends(get_db)):
-    db.query(models.TaskAssignee).filter_by(
-        task_id=task_id, user_id=user_id).delete()
-    db.commit()
+async def remove_assignee(
+    task_id: str,
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(models.TaskAssignee).where(
+            models.TaskAssignee.task_id == task_id,
+            models.TaskAssignee.user_id == user_id,
+        )
+    )
+    await db.commit()
+
     return {"ok": True}

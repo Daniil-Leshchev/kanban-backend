@@ -1,36 +1,72 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, update
+
 from app import models, schemas
+from app.dependencies.db import get_db
 
 router = APIRouter()
-def get_db(): db = SessionLocal(); yield db; db.close()
 
 
 @router.post("/", response_model=schemas.Subtask)
-def create_subtask(data: schemas.SubtaskCreate, db: Session = Depends(get_db)):
-    obj = models.Subtask(**data.dict())
+async def create_subtask(
+    data: schemas.SubtaskCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = models.Subtask(**data.model_dump())
     db.add(obj)
-    db.commit()
-    db.refresh(obj)
+
+    await db.commit()
+    await db.refresh(obj)
+
     return obj
 
 
 @router.get("/task/{task_id}", response_model=list[schemas.Subtask])
-def list_subtasks(task_id: str, db: Session = Depends(get_db)):
-    return db.query(models.Subtask).filter_by(task_id=task_id).order_by(models.Subtask.order).all()
+async def list_subtasks(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.Subtask)
+        .where(models.Subtask.task_id == task_id)
+        .order_by(models.Subtask.order)
+    )
+    return result.scalars().all()
 
 
 @router.patch("/{subtask_id}", response_model=schemas.Subtask)
-def update_subtask(subtask_id: str, data: schemas.SubtaskBase, db: Session = Depends(get_db)):
-    db.query(models.Subtask).filter_by(
-        id=subtask_id).update(data.dict(exclude_unset=True))
-    db.commit()
-    return db.query(models.Subtask).get(subtask_id)
+async def update_subtask(
+    subtask_id: str,
+    data: schemas.SubtaskBase,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        update(models.Subtask)
+        .where(models.Subtask.id == subtask_id)
+        .values(**data.model_dump(exclude_unset=True))
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Subtask).where(models.Subtask.id == subtask_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Subtask not found")
+
+    return obj
 
 
 @router.delete("/{subtask_id}")
-def delete_subtask(subtask_id: str, db: Session = Depends(get_db)):
-    db.query(models.Subtask).filter_by(id=subtask_id).delete()
-    db.commit()
+async def delete_subtask(
+    subtask_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(models.Subtask).where(models.Subtask.id == subtask_id)
+    )
+    await db.commit()
+
     return {"ok": True}

@@ -1,40 +1,61 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+
 from app import models, schemas
+from app.dependencies.db import get_db
 
 router = APIRouter()
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.post("/", response_model=schemas.User)
-def create_user(data: schemas.UserCreate, db: Session = Depends(get_db)):
-    obj = models.User(**data.dict())
+async def create_user(
+    data: schemas.UserCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = models.User(**data.model_dump())
     db.add(obj)
-    db.commit()
-    db.refresh(obj)
+
+    await db.commit()
+    await db.refresh(obj)
+
     return obj
 
 
 @router.get("/", response_model=list[schemas.User])
-def list_users(db: Session = Depends(get_db)):
-    return db.query(models.User).all()
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.User)
+    )
+    return result.scalars().all()
 
 
 @router.get("/{user_id}", response_model=schemas.User)
-def get_user(user_id: str, db: Session = Depends(get_db)):
-    return db.query(models.User).get(user_id)
+async def get_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.User).where(models.User.id == user_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return obj
 
 
 @router.delete("/{user_id}")
-def delete_user(user_id: str, db: Session = Depends(get_db)):
-    db.query(models.User).filter_by(id=user_id).delete()
-    db.commit()
+async def delete_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(models.User).where(models.User.id == user_id)
+    )
+    await db.commit()
+
     return {"ok": True}

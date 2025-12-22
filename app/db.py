@@ -1,18 +1,39 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+import os
+from dotenv import load_dotenv
 
-# DATABASE_URL = "postgresql+psycopg2://user:password@localhost:5432/kanban"
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+)
+from sqlalchemy.orm import DeclarativeBase
 
-# engine = create_engine(DATABASE_URL, echo=True, future=True)
+load_dotenv()
+
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+DATABASE_URL = (
+    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}"
+    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+)
+
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+    pool_pre_ping=True,
+)
 
 
-# class Base(DeclarativeBase):
-#     pass
+class Base(DeclarativeBase):
+    pass
 
 
-# SessionLocal = sessionmaker(
-#     bind=engine,
-#     autocommit=False,
-#     autoflush=False,
-#     expire_on_commit=False,
-# )
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)

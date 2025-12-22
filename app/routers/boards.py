@@ -1,41 +1,85 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, update
+
+from app.dependencies.db import get_db
 from app import models, schemas
 
 router = APIRouter()
-def get_db(): db = SessionLocal(); yield db; db.close()
 
 
 @router.post("/", response_model=schemas.Board)
-def create_board(data: schemas.BoardCreate, db: Session = Depends(get_db)):
-    obj = models.Board(**data.dict())
+async def create_board(
+    data: schemas.BoardCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = models.Board(**data.model_dump())
     db.add(obj)
-    db.commit()
-    db.refresh(obj)
+
+    await db.commit()
+    await db.refresh(obj)
+
     return obj
 
 
 @router.get("/", response_model=list[schemas.Board])
-def list_boards(db: Session = Depends(get_db)):
-    return db.query(models.Board).all()
+async def list_boards(
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.Board)
+    )
+    return result.scalars().all()
 
 
 @router.get("/{board_id}", response_model=schemas.Board)
-def get_board(board_id: str, db: Session = Depends(get_db)):
-    return db.query(models.Board).get(board_id)
+async def get_board(
+    board_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.Board).where(models.Board.id == board_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    return obj
 
 
 @router.patch("/{board_id}", response_model=schemas.Board)
-def update_board(board_id: str, data: schemas.BoardBase, db: Session = Depends(get_db)):
-    db.query(models.Board).filter_by(id=board_id).update(
-        data.dict(exclude_unset=True))
-    db.commit()
-    return db.query(models.Board).get(board_id)
+async def update_board(
+    board_id: str,
+    data: schemas.BoardBase,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        update(models.Board)
+        .where(models.Board.id == board_id)
+        .values(**data.model_dump(exclude_unset=True))
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Board).where(models.Board.id == board_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    return obj
 
 
 @router.delete("/{board_id}")
-def delete_board(board_id: str, db: Session = Depends(get_db)):
-    db.query(models.Board).filter_by(id=board_id).delete()
-    db.commit()
+async def delete_board(
+    board_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(models.Board).where(models.Board.id == board_id)
+    )
+    await db.commit()
+
     return {"ok": True}

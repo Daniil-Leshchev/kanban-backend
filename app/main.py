@@ -1,11 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from app.dependencies.db import get_db
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# from .db import Base, engine
-
-# Base.metadata.create_all(bind=engine)
 
 from app.routers import (
-    users, boards, columns, tasks, subtasks, comments, attachments, assignees, members
+    users, boards, columns, tasks, subtasks, comments, attachments, members
 )
 
 app = FastAPI(title="Kanban API")
@@ -19,10 +19,10 @@ app.include_router(subtasks.router, prefix="/subtasks", tags=["subtasks"])
 app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(attachments.router,
                    prefix="/attachments", tags=["attachments"])
-app.include_router(assignees.router, prefix="/assignees", tags=["assignees"])
 app.include_router(members.router, prefix="/members", tags=["board_members"])
 
 
-@app.get("/health")
-def health():
+@app.get("/health/db")
+async def db_health(db: AsyncSession = Depends(get_db)):
+    await db.execute(text("SELECT 1"))
     return {"status": "ok"}

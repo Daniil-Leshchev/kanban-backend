@@ -1,41 +1,89 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.db import SessionLocal
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, update
+
 from app import models, schemas
+from app.dependencies.db import get_db
+
 
 router = APIRouter()
-def get_db(): db = SessionLocal(); yield db; db.close()
 
 
 @router.post("/", response_model=schemas.Task)
-def create_task(data: schemas.TaskCreate, db: Session = Depends(get_db)):
-    obj = models.Task(**data.dict())
+async def create_task(
+    data: schemas.TaskCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = models.Task(**data.model_dump())
     db.add(obj)
-    db.commit()
-    db.refresh(obj)
+
+    await db.commit()
+    await db.refresh(obj)
+
     return obj
 
 
 @router.get("/column/{column_id}", response_model=list[schemas.Task])
-def list_tasks(column_id: str, db: Session = Depends(get_db)):
-    return db.query(models.Task).filter_by(column_id=column_id).order_by(models.Task.order).all()
+async def list_tasks(
+    column_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.Task)
+        .where(models.Task.column_id == column_id)
+        .order_by(models.Task.order)
+    )
+    return result.scalars().all()
 
 
 @router.get("/{task_id}", response_model=schemas.Task)
-def get_task(task_id: str, db: Session = Depends(get_db)):
-    return db.query(models.Task).get(task_id)
+async def get_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(models.Task).where(models.Task.id == task_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return obj
 
 
 @router.patch("/{task_id}", response_model=schemas.Task)
-def update_task(task_id: str, data: schemas.TaskUpdate, db: Session = Depends(get_db)):
-    db.query(models.Task).filter_by(id=task_id).update(
-        data.dict(exclude_unset=True))
-    db.commit()
-    return db.query(models.Task).get(task_id)
+async def update_task(
+    task_id: str,
+    data: schemas.TaskUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        update(models.Task)
+        .where(models.Task.id == task_id)
+        .values(**data.model_dump(exclude_unset=True))
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(models.Task).where(models.Task.id == task_id)
+    )
+    obj = result.scalar_one_or_none()
+
+    if obj is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return obj
 
 
 @router.delete("/{task_id}")
-def delete_task(task_id: str, db: Session = Depends(get_db)):
-    db.query(models.Task).filter_by(id=task_id).delete()
-    db.commit()
+async def delete_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(models.Task).where(models.Task.id == task_id)
+    )
+    await db.commit()
+
     return {"ok": True}
