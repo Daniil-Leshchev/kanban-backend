@@ -85,7 +85,7 @@ class TaskUpdate(BaseModel):
     deadline: Optional[datetime] = None
     display_order: Optional[int] = None
     column_id: Optional[uuid.UUID] = None
-    is_completed: Optional[bool]
+    is_completed: Optional[bool] = None
 
 
 class Task(TaskBase):

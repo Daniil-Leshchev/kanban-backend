@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
-
+import uuid
 from app.dependencies.db import get_db
 from app.models import Board, User, BoardMember, Column, Task, Subtask, TaskAssignee, Comment
 from app.schemas import (
@@ -64,7 +64,7 @@ async def list_boards(
 
 @router.get("/{board_id}", response_model=BoardOut)
 async def get_board(
-    board_id: str,
+    board_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -80,7 +80,7 @@ async def get_board(
 
 @router.patch("/{board_id}", response_model=BoardOut)
 async def update_board(
-    board_id: str,
+    board_id: uuid.UUID,
     data: BoardBase,
     db: AsyncSession = Depends(get_db),
 ):
@@ -104,7 +104,7 @@ async def update_board(
 
 @router.delete("/{board_id}")
 async def delete_board(
-    board_id: str,
+    board_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
@@ -117,7 +117,7 @@ async def delete_board(
 
 @router.get("/{board_id}/view", response_model=BoardViewOut)
 async def get_board_view(
-    board_id: str,
+    board_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     board_result = await db.execute(

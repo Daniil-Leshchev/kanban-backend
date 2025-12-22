@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
-
+import uuid
 from app.dependencies.db import get_db
 from app.models import Column as ColumnModel
 from app.schemas import Column, ColumnCreate, ColumnBase
@@ -25,7 +25,7 @@ async def create_column(
 
 @router.get("/board/{board_id}", response_model=list[Column])
 async def list_board_columns(
-    board_id: str,
+    board_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -38,7 +38,7 @@ async def list_board_columns(
 
 @router.patch("/{column_id}", response_model=Column)
 async def update_column(
-    column_id: str,
+    column_id: uuid.UUID,
     data: ColumnBase,
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,7 +62,7 @@ async def update_column(
 
 @router.delete("/{column_id}")
 async def delete_column(
-    column_id: str,
+    column_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(

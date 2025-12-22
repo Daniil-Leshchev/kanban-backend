@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-
+import uuid
 from app.models import Comment as CommentModel
 from app.schemas import Comment, CommentCreate
 from app.dependencies.db import get_db
@@ -25,7 +25,7 @@ async def create_comment(
 
 @router.get("/task/{task_id}", response_model=list[Comment])
 async def list_comments(
-    task_id: str,
+    task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -38,7 +38,7 @@ async def list_comments(
 
 @router.delete("/{comment_id}")
 async def delete_comment(
-    comment_id: str,
+    comment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(

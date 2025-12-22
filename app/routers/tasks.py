@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 from pydantic import BaseModel
 from sqlalchemy import select, delete, update
-
 from app.models import Task as TaskModel
 from app.models import TaskAssignee as TaskAssigneeModel
 from app.schemas import Task, TaskCreate, TaskUpdate
@@ -34,7 +33,7 @@ async def create_task(
 
 @router.get("/column/{column_id}", response_model=list[Task])
 async def list_tasks(
-    column_id: str,
+    column_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -47,7 +46,7 @@ async def list_tasks(
 
 @router.get("/{task_id}", response_model=Task)
 async def get_task(
-    task_id: str,
+    task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -63,17 +62,10 @@ async def get_task(
 
 @router.patch("/{task_id}", response_model=Task)
 async def update_task(
-    task_id: str,
+    task_id: uuid.UUID,
     data: TaskUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    await db.execute(
-        update(TaskModel)
-        .where(TaskModel.id == task_id)
-        .values(**data.model_dump(exclude_unset=True))
-    )
-    await db.commit()
-
     result = await db.execute(
         select(TaskModel).where(TaskModel.id == task_id)
     )
@@ -82,12 +74,28 @@ async def update_task(
     if obj is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    payload = data.model_dump(exclude_unset=True)
+
+    if "display_order" in payload and payload["display_order"] < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="display_order must be >= 0"
+        )
+
+    await db.execute(
+        update(TaskModel)
+        .where(TaskModel.id == task_id)
+        .values(**payload)
+    )
+    await db.commit()
+
+    await db.refresh(obj)
     return obj
 
 
 @router.delete("/{task_id}")
 async def delete_task(
-    task_id: str,
+    task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(

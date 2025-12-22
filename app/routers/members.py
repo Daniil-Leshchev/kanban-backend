@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-
+import uuid
 from app.models import User, BoardMember
 from app.dependencies.db import get_db
 from app.schemas import MemberCreate, MemberOut
@@ -37,7 +37,7 @@ async def add_member(
 
 @router.get("/{board_id}", response_model=list[MemberOut])
 async def list_members(
-    board_id: str,
+    board_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -62,8 +62,8 @@ async def list_members(
 
 @router.delete("/{board_id}/{user_id}")
 async def remove_member(
-    board_id: str,
-    user_id: str,
+    board_id: uuid.UUID,
+    user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
