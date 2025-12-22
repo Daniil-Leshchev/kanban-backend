@@ -64,7 +64,7 @@ class Column(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     board_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("boards.id"))
     title: Mapped[str] = mapped_column(String)
-    order: Mapped[int] = mapped_column(Integer)
+    display_order: Mapped[int] = mapped_column(Integer)
     color: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP, default=datetime.utcnow)
@@ -79,10 +79,13 @@ class Task(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     column_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("columns.id"))
 
+    title: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(Text)
     priority: Mapped[Priority | None] = mapped_column(Enum(Priority))
     deadline: Mapped[datetime | None] = mapped_column(TIMESTAMP)
-    order: Mapped[int] = mapped_column(Integer)
+    display_order: Mapped[int] = mapped_column(Integer)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    color: Mapped[str | None] = mapped_column(String)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP, default=datetime.utcnow)
@@ -108,7 +111,14 @@ class Subtask(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"))
     title: Mapped[str] = mapped_column(String)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    order: Mapped[int] = mapped_column(Integer)
+    display_order: Mapped[int] = mapped_column(Integer)
+    color: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     task: Mapped["Task"] = relationship(back_populates="subtasks")
 
