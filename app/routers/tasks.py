@@ -31,7 +31,7 @@ async def list_tasks(
     result = await db.execute(
         select(models.Task)
         .where(models.Task.column_id == column_id)
-        .order_by(models.Task.order)
+        .order_by(models.Task.display_order)
     )
     return result.scalars().all()
 

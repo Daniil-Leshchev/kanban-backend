@@ -30,7 +30,7 @@ async def list_board_columns(
     result = await db.execute(
         select(models.Column)
         .where(models.Column.board_id == board_id)
-        .order_by(models.Column.order)
+        .order_by(models.Column.display_order)
     )
     return result.scalars().all()
 

@@ -30,7 +30,7 @@ async def list_subtasks(
     result = await db.execute(
         select(models.Subtask)
         .where(models.Subtask.task_id == task_id)
-        .order_by(models.Subtask.order)
+        .order_by(models.Subtask.display_order)
     )
     return result.scalars().all()
 

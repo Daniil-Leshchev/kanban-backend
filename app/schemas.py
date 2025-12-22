@@ -42,7 +42,7 @@ class Board(BoardBase):
 
 class ColumnBase(BaseModel):
     title: str
-    order: int
+    display_order: int
     color: Optional[str] = None
 
 
@@ -63,7 +63,7 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
-    order: int
+    display_order: int
 
 
 class TaskCreate(TaskBase):
@@ -75,7 +75,7 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
-    order: Optional[int] = None
+    display_order: Optional[int] = None
     column_id: Optional[uuid.UUID] = None
 
 
@@ -93,7 +93,7 @@ class Task(TaskBase):
 class SubtaskBase(BaseModel):
     title: str
     is_completed: bool
-    order: int
+    display_order: int
 
 
 class SubtaskCreate(SubtaskBase):
