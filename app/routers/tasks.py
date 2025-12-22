@@ -1,13 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+import uuid
+from pydantic import BaseModel
 from sqlalchemy import select, delete, update
 
 from app.models import Task as TaskModel
+from app.models import TaskAssignee as TaskAssigneeModel
 from app.schemas import Task, TaskCreate, TaskUpdate
+from app.schemas import TaskAssignee
 from app.dependencies.db import get_db
 
 
 router = APIRouter()
+
+
+class AssigneeAddIn(BaseModel):
+    user_id: uuid.UUID
 
 
 @router.post("/", response_model=Task)
@@ -84,6 +92,53 @@ async def delete_task(
 ):
     await db.execute(
         delete(TaskModel).where(TaskModel.id == task_id)
+    )
+    await db.commit()
+
+    return {"ok": True}
+
+
+@router.post("/{task_id}/assignees", response_model=TaskAssignee)
+async def add_assignee_to_task(
+    task_id: uuid.UUID,
+    data: AssigneeAddIn,
+    db: AsyncSession = Depends(get_db),
+):
+    obj = TaskAssigneeModel(task_id=task_id, user_id=data.user_id)
+    db.add(obj)
+
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Cannot assign user to task")
+
+    await db.refresh(obj)
+    return obj
+
+
+@router.get("/{task_id}/assignees", response_model=list[TaskAssignee])
+async def list_task_assignees(
+    task_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(TaskAssigneeModel).where(TaskAssigneeModel.task_id == task_id)
+    )
+    return result.scalars().all()
+
+
+@router.delete("/{task_id}/assignees/{user_id}")
+async def remove_assignee_from_task(
+    task_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(
+        delete(TaskAssigneeModel).where(
+            TaskAssigneeModel.task_id == task_id,
+            TaskAssigneeModel.user_id == user_id,
+        )
     )
     await db.commit()
 
