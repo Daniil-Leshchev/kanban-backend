@@ -204,6 +204,14 @@ class BoardViewAssignee(BaseModel):
     name: str
 
 
+class BoardViewComment(BaseModel):
+    id: uuid.UUID
+    task_id: uuid.UUID
+    content: str
+    user_id: Optional[uuid.UUID]
+    created_at: datetime
+
+
 class BoardViewTask(BaseModel):
     id: uuid.UUID
     title: str
@@ -213,6 +221,7 @@ class BoardViewTask(BaseModel):
     color: Optional[str] = None
     assignees: List[BoardViewAssignee] = []
     subtasks: List[BoardViewSubtask]
+    comments: list[BoardViewComment] = []
 
 
 class BoardViewColumn(BaseModel):

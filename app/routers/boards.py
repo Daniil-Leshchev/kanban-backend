@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
 
 from app.dependencies.db import get_db
-from app.models import Board, User, BoardMember, Column, Task, Subtask, TaskAssignee
+from app.models import Board, User, BoardMember, Column, Task, Subtask, TaskAssignee, Comment
 from app.schemas import (
     BoardBase,
     BoardCreate,
@@ -13,6 +13,7 @@ from app.schemas import (
     BoardViewTask,
     BoardViewSubtask,
     BoardViewMember,
+    BoardViewComment,
 )
 
 
@@ -161,6 +162,26 @@ async def get_board_view(
 
     task_ids = [task.id for task in tasks]
 
+    comments_result = await db.execute(
+        select(Comment)
+        .where(Comment.task_id.in_(task_ids))
+        .order_by(Comment.created_at)
+    )
+
+    comments = comments_result.scalars().all()
+
+    comments_by_task: dict = {}
+    for c in comments:
+        comments_by_task.setdefault(c.task_id, []).append(
+            BoardViewComment(
+                id=c.id,
+                task_id=c.task_id,
+                content=c.content,
+                user_id=c.user_id,
+                created_at=c.created_at,
+            )
+        )
+
     assignees_result = await db.execute(
         select(
             TaskAssignee.task_id,
@@ -210,6 +231,7 @@ async def get_board_view(
                 color=task.color,
                 assignees=assignees_by_task.get(task.id, []),
                 subtasks=subtasks_by_task.get(task.id, []),
+                comments=comments_by_task.get(task.id, []),
             )
         )
 
