@@ -124,13 +124,13 @@ class CommentBase(BaseModel):
 
 class CommentCreate(CommentBase):
     task_id: uuid.UUID
-    user_id: uuid.UUID | None
+    user_id: Optional[uuid.UUID] = None
 
 
 class Comment(CommentBase):
     id: uuid.UUID
     task_id: uuid.UUID
-    user_id: uuid.UUID
+    user_id: Optional[uuid.UUID] = None
     created_at: datetime
 
     class Config:
