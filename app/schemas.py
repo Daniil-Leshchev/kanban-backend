@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional, List
-from app.models import Priority, MemberRole
+from app.models import Priority
 
 
 class UserBase(BaseModel):
@@ -70,7 +70,7 @@ class Column(ColumnBase):
 
 
 class TaskBase(BaseModel):
-    description: Optional[str] = None
+    title: str
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
     display_order: int
@@ -78,15 +78,14 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     column_id: uuid.UUID
-    created_by: uuid.UUID
 
 
 class TaskUpdate(BaseModel):
-    description: Optional[str] = None
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
     display_order: Optional[int] = None
     column_id: Optional[uuid.UUID] = None
+    is_completed: Optional[bool]
 
 
 class Task(TaskBase):
@@ -94,7 +93,8 @@ class Task(TaskBase):
     created_at: datetime
     updated_at: datetime
     column_id: uuid.UUID
-    created_by: uuid.UUID
+    is_completed: Optional[bool]
+    created_by: uuid.UUID | None
 
     class Config:
         orm_mode = True
@@ -124,7 +124,7 @@ class CommentBase(BaseModel):
 
 class CommentCreate(CommentBase):
     task_id: uuid.UUID
-    user_id: uuid.UUID
+    user_id: uuid.UUID | None
 
 
 class Comment(CommentBase):
@@ -168,7 +168,7 @@ class TaskAssignee(BaseModel):
 class BoardMember(BaseModel):
     board_id: uuid.UUID
     user_id: uuid.UUID
-    role: MemberRole
+    role: str
 
     class Config:
         orm_mode = True
@@ -193,6 +193,17 @@ class BoardViewSubtask(BaseModel):
     display_order: int
 
 
+class BoardViewMember(BaseModel):
+    member_id: uuid.UUID
+    name: str
+    role: str
+
+
+class BoardViewAssignee(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
 class BoardViewTask(BaseModel):
     id: uuid.UUID
     title: str
@@ -200,6 +211,7 @@ class BoardViewTask(BaseModel):
     deadline: Optional[datetime] = None
     is_completed: bool
     color: Optional[str] = None
+    assignees: List[BoardViewAssignee] = []
     subtasks: List[BoardViewSubtask]
 
 
@@ -208,12 +220,6 @@ class BoardViewColumn(BaseModel):
     title: str
     display_order: int
     tasks: List[BoardViewTask]
-
-
-class BoardViewMember(BaseModel):
-    member_id: uuid.UUID
-    name: str
-    role: str
 
 
 class BoardViewOut(BaseModel):

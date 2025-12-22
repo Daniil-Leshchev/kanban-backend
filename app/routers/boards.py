@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
 
 from app.dependencies.db import get_db
-from app.models import Board, User, BoardMember, Column, Task, Subtask
+from app.models import Board, User, BoardMember, Column, Task, Subtask, TaskAssignee
 from app.schemas import (
     BoardBase,
     BoardCreate,
@@ -15,7 +15,15 @@ from app.schemas import (
     BoardViewMember,
 )
 
+
 router = APIRouter()
+
+DEFAULT_COLUMNS = [
+    {"title": "Бэклог", "display_order": 1},
+    {"title": "Сделать", "display_order": 2},
+    {"title": "В процессе", "display_order": 3},
+    {"title": "Готово", "display_order": 4},
+]
 
 
 @router.post("/", response_model=BoardOut)
@@ -25,6 +33,17 @@ async def create_board(
 ):
     obj = Board(**data.model_dump())
     db.add(obj)
+
+    await db.flush()
+
+    for col in DEFAULT_COLUMNS:
+        db.add(
+            Column(
+                board_id=obj.id,
+                title=col["title"],
+                display_order=col["display_order"],
+            )
+        )
 
     await db.commit()
     await db.refresh(obj)
@@ -118,7 +137,7 @@ async def get_board_view(
     )
     members = [
         BoardViewMember(
-            member_id=row.id,
+            member_id=row.user_id,
             name=row.name,
             role=row.role,
         )
@@ -141,6 +160,25 @@ async def get_board_view(
     tasks = tasks_result.scalars().all()
 
     task_ids = [task.id for task in tasks]
+
+    assignees_result = await db.execute(
+        select(
+            TaskAssignee.task_id,
+            User.id,
+            User.name,
+        )
+        .join(User, User.id == TaskAssignee.user_id)
+        .where(TaskAssignee.task_id.in_(task_ids))
+    )
+
+    assignees_by_task: dict = {}
+    for row in assignees_result.all():
+        assignees_by_task.setdefault(row.task_id, []).append(
+            {
+                "id": row.id,
+                "name": row.name,
+            }
+        )
 
     subtasks_result = await db.execute(
         select(Subtask)
@@ -170,6 +208,7 @@ async def get_board_view(
                 deadline=task.deadline,
                 is_completed=task.is_completed,
                 color=task.color,
+                assignees=assignees_by_task.get(task.id, []),
                 subtasks=subtasks_by_task.get(task.id, []),
             )
         )

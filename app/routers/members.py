@@ -52,7 +52,7 @@ async def list_members(
 
     return [
         MemberOut(
-            member_id=row.id,
+            member_id=row.user_id,
             name=row.name,
             role=row.role,
         )

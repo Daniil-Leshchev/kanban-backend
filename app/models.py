@@ -2,10 +2,12 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Text, Integer, Boolean,
-    Enum, TIMESTAMP, ForeignKey
+    TIMESTAMP, ForeignKey
 )
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.sql import func
+from sqlalchemy import Enum as SAEnum
 from enum import Enum as PyEnum
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from .db import Base
 
@@ -14,12 +16,6 @@ class Priority(PyEnum):
     low = "low"
     medium = "medium"
     high = "high"
-
-
-class MemberRole(PyEnum):
-    viewer = "viewer"
-    editor = "editor"
-    admin = "admin"
 
 
 class User(Base):
@@ -46,9 +42,12 @@ class Board(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow)
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
     )
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id"),
@@ -70,7 +69,8 @@ class Column(Base):
     display_order: Mapped[int] = mapped_column(Integer)
     color: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow)
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
 
     board: Mapped["Board"] = relationship(back_populates="columns")
     tasks: Mapped[list["Task"]] = relationship(back_populates="column")
@@ -83,19 +83,26 @@ class Task(Base):
     column_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("columns.id"))
 
     title: Mapped[str] = mapped_column(String)
-    description: Mapped[str | None] = mapped_column(Text)
-    priority: Mapped[Priority | None] = mapped_column(Enum(Priority))
-    deadline: Mapped[datetime | None] = mapped_column(TIMESTAMP)
+    priority: Mapped[Priority | None] = mapped_column(
+        SAEnum(Priority, name="priority_level")
+    )
+    deadline: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True)
+    )
     display_order: Mapped[int] = mapped_column(Integer)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     color: Mapped[str | None] = mapped_column(String)
 
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True), server_default=func.now()
     )
-    created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
 
     column: Mapped["Column"] = relationship(back_populates="tasks")
     creator: Mapped["User"] = relationship()
@@ -117,10 +124,12 @@ class Subtask(Base):
     display_order: Mapped[int] = mapped_column(Integer)
     color: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow
+        TIMESTAMP(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
     )
 
     task: Mapped["Task"] = relationship(back_populates="subtasks")
@@ -131,10 +140,12 @@ class Comment(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"))
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"), nullable=True)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow)
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
 
     task: Mapped["Task"] = relationship(back_populates="comments")
     author: Mapped["User"] = relationship(back_populates="comments")
@@ -148,7 +159,8 @@ class Attachment(Base):
     file_url: Mapped[str] = mapped_column(String)
     file_name: Mapped[str] = mapped_column(String)
     uploaded_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP, default=datetime.utcnow)
+        TIMESTAMP(timezone=True), server_default=func.now()
+    )
     uploaded_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
 
     task: Mapped["Task"] = relationship(back_populates="attachments")
@@ -174,7 +186,7 @@ class BoardMember(Base):
         ForeignKey("boards.id"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"), primary_key=True)
-    role: Mapped[MemberRole] = mapped_column(Enum(MemberRole))
+    role: Mapped[str] = mapped_column(String)
 
     board: Mapped["Board"] = relationship(back_populates="members")
     user: Mapped["User"] = relationship(back_populates="memberships")
