@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from app.models import Priority, MemberRole
 
 
@@ -162,3 +162,15 @@ class BoardMember(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class MemberCreate(BaseModel):
+    board_id: uuid.UUID
+    name: str
+    role: str
+
+
+class MemberOut(BaseModel):
+    member_id: uuid.UUID
+    name: str
+    role: str
