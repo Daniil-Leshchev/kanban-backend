@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update
-
+import uuid
 from app.models import Subtask as SubtaskModel
 from app.schemas import Subtask, SubtaskCreate, SubtaskBase
 from app.dependencies.db import get_db
@@ -25,7 +25,7 @@ async def create_subtask(
 
 @router.get("/task/{task_id}", response_model=list[Subtask])
 async def list_subtasks(
-    task_id: str,
+    task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -38,7 +38,7 @@ async def list_subtasks(
 
 @router.patch("/{subtask_id}", response_model=Subtask)
 async def update_subtask(
-    subtask_id: str,
+    subtask_id: uuid.UUID,
     data: SubtaskBase,
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,7 +62,7 @@ async def update_subtask(
 
 @router.delete("/{subtask_id}")
 async def delete_subtask(
-    subtask_id: str,
+    subtask_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(

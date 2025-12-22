@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
-
+import uuid
 from app.models import Attachment as AttachmentModel
 from app.schemas import Attachment, AttachmentCreate
 from app.dependencies.db import get_db
@@ -25,7 +25,7 @@ async def create_attachment(
 
 @router.get("/task/{task_id}", response_model=list[Attachment])
 async def list_attachments(
-    task_id: str,
+    task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -38,7 +38,7 @@ async def list_attachments(
 
 @router.delete("/{attachment_id}")
 async def delete_attachment(
-    attachment_id: str,
+    attachment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
