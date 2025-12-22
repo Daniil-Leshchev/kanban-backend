@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from app import models, schemas
+from app.models import Attachment as AttachmentModel
+from app.schemas import Attachment, AttachmentCreate
 from app.dependencies.db import get_db
 
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.Attachment)
+@router.post("/", response_model=Attachment)
 async def create_attachment(
-    data: schemas.AttachmentCreate,
+    data: AttachmentCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = models.Attachment(**data.model_dump())
+    obj = AttachmentModel(**data.model_dump())
     db.add(obj)
 
     await db.commit()
@@ -22,14 +23,14 @@ async def create_attachment(
     return obj
 
 
-@router.get("/task/{task_id}", response_model=list[schemas.Attachment])
+@router.get("/task/{task_id}", response_model=list[Attachment])
 async def list_attachments(
     task_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(models.Attachment).where(
-            models.Attachment.task_id == task_id
+        select(AttachmentModel).where(
+            AttachmentModel.task_id == task_id
         )
     )
     return result.scalars().all()
@@ -41,8 +42,8 @@ async def delete_attachment(
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
-        delete(models.Attachment).where(
-            models.Attachment.id == attachment_id
+        delete(AttachmentModel).where(
+            AttachmentModel.id == attachment_id
         )
     )
     await db.commit()

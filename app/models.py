@@ -50,7 +50,10 @@ class Board(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow
     )
-    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True,
+    )
 
     owner: Mapped["User"] = relationship(back_populates="boards_owned")
 

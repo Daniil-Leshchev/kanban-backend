@@ -3,17 +3,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from app.dependencies.db import get_db
-from app import models, schemas
+from app.models import TaskAssignee as TaskAssigneeModel
+from app.schemas import TaskAssignee as TaskAssigneeSchema
 
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.TaskAssignee)
+@router.post("/", response_model=TaskAssigneeSchema)
 async def add_assignee(
-    data: schemas.TaskAssignee,
+    data: TaskAssigneeSchema,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = models.TaskAssignee(**data.model_dump())
+    obj = TaskAssigneeModel(**data.model_dump())
     db.add(obj)
 
     await db.commit()
@@ -22,14 +23,14 @@ async def add_assignee(
     return obj
 
 
-@router.get("/task/{task_id}", response_model=list[schemas.TaskAssignee])
+@router.get("/task/{task_id}", response_model=list[TaskAssigneeSchema])
 async def list_assignees(
     task_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(models.TaskAssignee).where(
-            models.TaskAssignee.task_id == task_id
+        select(TaskAssigneeModel).where(
+            TaskAssigneeModel.task_id == task_id
         )
     )
     return result.scalars().all()
@@ -42,9 +43,9 @@ async def remove_assignee(
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
-        delete(models.TaskAssignee).where(
-            models.TaskAssignee.task_id == task_id,
-            models.TaskAssignee.user_id == user_id,
+        delete(TaskAssigneeModel).where(
+            TaskAssigneeModel.task_id == task_id,
+            TaskAssigneeModel.user_id == user_id,
         )
     )
     await db.commit()

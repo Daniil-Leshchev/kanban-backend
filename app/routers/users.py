@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from app import models, schemas
+from app.models import User as UserModel
+from app.schemas import User, UserCreate
 from app.dependencies.db import get_db
 
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.User)
+@router.post("/", response_model=User)
 async def create_user(
-    data: schemas.UserCreate,
+    data: UserCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = models.User(**data.model_dump())
+    obj = UserModel(**data.model_dump())
     db.add(obj)
 
     await db.commit()
@@ -22,23 +23,23 @@ async def create_user(
     return obj
 
 
-@router.get("/", response_model=list[schemas.User])
+@router.get("/", response_model=list[User])
 async def list_users(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(models.User)
+        select(UserModel)
     )
     return result.scalars().all()
 
 
-@router.get("/{user_id}", response_model=schemas.User)
+@router.get("/{user_id}", response_model=User)
 async def get_user(
     user_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(models.User).where(models.User.id == user_id)
+        select(UserModel).where(UserModel.id == user_id)
     )
     obj = result.scalar_one_or_none()
 
@@ -54,7 +55,7 @@ async def delete_user(
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
-        delete(models.User).where(models.User.id == user_id)
+        delete(UserModel).where(UserModel.id == user_id)
     )
     await db.commit()
 

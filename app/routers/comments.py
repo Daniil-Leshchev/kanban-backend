@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from app import models, schemas
+from app.models import Comment as CommentModel
+from app.schemas import Comment, CommentCreate
 from app.dependencies.db import get_db
 
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.Comment)
+@router.post("/", response_model=Comment)
 async def create_comment(
-    data: schemas.CommentCreate,
+    data: CommentCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = models.Comment(**data.model_dump())
+    obj = CommentModel(**data.model_dump())
     db.add(obj)
 
     await db.commit()
@@ -22,14 +23,14 @@ async def create_comment(
     return obj
 
 
-@router.get("/task/{task_id}", response_model=list[schemas.Comment])
+@router.get("/task/{task_id}", response_model=list[Comment])
 async def list_comments(
     task_id: str,
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(models.Comment).where(
-            models.Comment.task_id == task_id
+        select(CommentModel).where(
+            CommentModel.task_id == task_id
         )
     )
     return result.scalars().all()
@@ -41,8 +42,8 @@ async def delete_comment(
     db: AsyncSession = Depends(get_db),
 ):
     await db.execute(
-        delete(models.Comment).where(
-            models.Comment.id == comment_id
+        delete(CommentModel).where(
+            CommentModel.id == comment_id
         )
     )
     await db.commit()

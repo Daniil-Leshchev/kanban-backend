@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from app.models import Priority, MemberRole
 
 
@@ -27,7 +27,7 @@ class BoardBase(BaseModel):
 
 
 class BoardCreate(BoardBase):
-    owner_id: uuid.UUID
+    pass
 
 
 class Board(BoardBase):
@@ -35,6 +35,16 @@ class Board(BoardBase):
     created_at: datetime
     updated_at: datetime
     owner_id: uuid.UUID
+
+    class Config:
+        orm_mode = True
+
+
+class BoardOut(BoardBase):
+    id: uuid.UUID
+    owner_id: uuid.UUID | None
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True
@@ -174,3 +184,41 @@ class MemberOut(BaseModel):
     member_id: uuid.UUID
     name: str
     role: str
+
+
+class BoardViewSubtask(BaseModel):
+    id: uuid.UUID
+    title: str
+    is_completed: bool
+    display_order: int
+
+
+class BoardViewTask(BaseModel):
+    id: uuid.UUID
+    title: str
+    priority: Optional[Priority] = None
+    deadline: Optional[datetime] = None
+    is_completed: bool
+    color: Optional[str] = None
+    subtasks: List[BoardViewSubtask]
+
+
+class BoardViewColumn(BaseModel):
+    id: uuid.UUID
+    title: str
+    display_order: int
+    tasks: List[BoardViewTask]
+
+
+class BoardViewMember(BaseModel):
+    member_id: uuid.UUID
+    name: str
+    role: str
+
+
+class BoardViewOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    background_color: Optional[str] = None
+    members: List[BoardViewMember]
+    columns: List[BoardViewColumn]
