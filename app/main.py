@@ -12,7 +12,8 @@ from app.routers import (
 app = FastAPI(title="Kanban API")
 
 origins = [
-    "http://localhost:5137"
+    "http://localhost:5137",
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
