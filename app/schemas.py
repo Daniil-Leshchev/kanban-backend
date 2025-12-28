@@ -73,7 +73,7 @@ class TaskBase(BaseModel):
     title: str
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
-    display_order: int
+    display_order: Optional[int] = None
 
 
 class TaskCreate(TaskBase):

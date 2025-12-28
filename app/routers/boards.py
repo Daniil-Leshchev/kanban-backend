@@ -227,6 +227,7 @@ async def get_board_view(
                 title=task.title,
                 priority=task.priority,
                 deadline=task.deadline,
+                display_order=task.display_order,
                 is_completed=task.is_completed,
                 color=task.color,
                 assignees=assignees_by_task.get(task.id, []),
