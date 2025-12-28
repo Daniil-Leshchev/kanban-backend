@@ -217,6 +217,7 @@ class BoardViewTask(BaseModel):
     title: str
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
+    display_order: int
     is_completed: bool
     color: Optional[str] = None
     assignees: List[BoardViewAssignee] = []
