@@ -238,3 +238,12 @@ class BoardViewOut(BaseModel):
     background_color: Optional[str] = None
     members: List[BoardViewMember]
     columns: List[BoardViewColumn]
+
+
+class ColumnReorderPayload(BaseModel):
+    column_id: uuid.UUID
+    task_ids: List[uuid.UUID]
+
+
+class BoardReorderPayload(BaseModel):
+    columns: List[ColumnReorderPayload]

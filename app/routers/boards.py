@@ -14,6 +14,7 @@ from app.schemas import (
     BoardViewSubtask,
     BoardViewMember,
     BoardViewComment,
+    BoardReorderPayload,
 )
 
 
@@ -254,3 +255,62 @@ async def get_board_view(
         members=members,
         columns=columns_out,
     )
+
+
+@router.post("/{board_id}/reorder")
+async def reorder_board(
+    board_id: uuid.UUID,
+    payload: BoardReorderPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    board_result = await db.execute(
+        select(Board).where(Board.id == board_id)
+    )
+    board = board_result.scalar_one_or_none()
+    if board is None:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    columns_result = await db.execute(
+        select(Column.id).where(Column.board_id == board_id)
+    )
+    board_column_ids = {row.id for row in columns_result.all()}
+
+    for col in payload.columns:
+        if col.column_id not in board_column_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Column {col.column_id} does not belong to board {board_id}",
+            )
+
+    all_task_ids = []
+    for col in payload.columns:
+        all_task_ids.extend(col.task_ids)
+
+    if len(all_task_ids) != len(set(all_task_ids)):
+        raise HTTPException(
+            status_code=400,
+            detail="Duplicate task_ids in reorder payload",
+        )
+
+    affected_column_ids = {col.column_id for col in payload.columns}
+
+    await db.execute(
+        update(Task)
+        .where(Task.column_id.in_(affected_column_ids))
+        .values(display_order=Task.display_order + 1000)
+    )
+
+    for col in payload.columns:
+        for index, task_id in enumerate(col.task_ids):
+            await db.execute(
+                update(Task)
+                .where(Task.id == task_id)
+                .values(
+                    column_id=col.column_id,
+                    display_order=index,
+                )
+            )
+
+    await db.commit()
+
+    return {"ok": True}
