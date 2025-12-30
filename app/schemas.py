@@ -76,7 +76,8 @@ class TaskBase(BaseModel):
     display_order: Optional[int] = None
 
 
-class TaskCreate(TaskBase):
+class TaskCreate(BaseModel):
+    title: str
     column_id: uuid.UUID
 
 

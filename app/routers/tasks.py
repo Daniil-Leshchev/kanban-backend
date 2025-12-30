@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 from pydantic import BaseModel
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, func
 from app.models import Task as TaskModel
 from app.models import TaskAssignee as TaskAssigneeModel
 from app.schemas import Task, TaskCreate, TaskUpdate
@@ -22,9 +22,26 @@ async def create_task(
     data: TaskCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    obj = TaskModel(**data.model_dump())
-    db.add(obj)
+    await db.execute(
+        update(TaskModel)
+        .where(TaskModel.column_id == data.column_id)
+        .values(display_order=TaskModel.display_order + 100000)
+    )
 
+    await db.execute(
+        update(TaskModel)
+        .where(TaskModel.column_id == data.column_id)
+        .values(display_order=TaskModel.display_order - 99999)
+    )
+
+    obj = TaskModel(
+        id=uuid.uuid4(),
+        title=data.title,
+        column_id=data.column_id,
+        display_order=0,
+    )
+
+    db.add(obj)
     await db.commit()
     await db.refresh(obj)
 
