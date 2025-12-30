@@ -91,7 +91,7 @@ class Task(Base):
     )
     display_order: Mapped[int] = mapped_column(Integer)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    color: Mapped[str | None] = mapped_column(String)
+    color: Mapped[str] = mapped_column(String, default='#FFF')
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now()

@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from app.models import Priority
+import re
 
 
 class UserBase(BaseModel):
@@ -87,6 +88,17 @@ class TaskUpdate(BaseModel):
     display_order: Optional[int] = None
     column_id: Optional[uuid.UUID] = None
     is_completed: Optional[bool] = None
+    color: Optional[str] = Field(
+        default=None,
+    )
+
+    @field_validator("color")
+    def validate_hex_color(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        if not re.fullmatch(r"#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})", value):
+            raise ValueError("color must be valid hex color")
+        return value
 
 
 class Task(TaskBase):

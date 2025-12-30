@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 from pydantic import BaseModel
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete, update
 from app.models import Task as TaskModel
 from app.models import TaskAssignee as TaskAssigneeModel
 from app.schemas import Task, TaskCreate, TaskUpdate
@@ -92,6 +92,8 @@ async def update_task(
         raise HTTPException(status_code=404, detail="Task not found")
 
     payload = data.model_dump(exclude_unset=True)
+    if "color" in payload and payload["color"] is not None:
+        payload["color"] = payload["color"].upper()
 
     if "display_order" in payload and payload["display_order"] < 0:
         raise HTTPException(
