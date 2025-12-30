@@ -83,6 +83,7 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1)
     priority: Optional[Priority] = None
     deadline: Optional[datetime] = None
     display_order: Optional[int] = None
@@ -91,6 +92,14 @@ class TaskUpdate(BaseModel):
     color: Optional[str] = Field(
         default=None,
     )
+
+    @field_validator("title")
+    def validate_title(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        if not value.strip():
+            raise ValueError("title cannot be empty")
+        return value
 
     @field_validator("color")
     def validate_hex_color(cls, value: Optional[str]) -> Optional[str]:
