@@ -230,6 +230,7 @@ async def get_board_view(
                 display_order=task.display_order,
                 is_completed=task.is_completed,
                 color=task.color,
+                board_id=task.board_id,
                 assignees=assignees_by_task.get(task.id, []),
                 subtasks=subtasks_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
