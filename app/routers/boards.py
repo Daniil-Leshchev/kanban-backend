@@ -152,11 +152,10 @@ async def get_board_view(
         .order_by(Column.display_order)
     )
     columns = columns_result.scalars().all()
-    column_map = {col.id: col for col in columns}
 
     tasks_result = await db.execute(
         select(Task)
-        .where(Task.column_id.in_(column_map.keys()))
+        .where(Task.board_id == board_id)
         .order_by(Task.display_order)
     )
     tasks = tasks_result.scalars().all()
@@ -285,6 +284,18 @@ async def reorder_board(
     all_task_ids = []
     for col in payload.columns:
         all_task_ids.extend(col.task_ids)
+
+    tasks_check = await db.execute(
+        select(Task.id).where(
+            Task.id.in_(all_task_ids),
+            Task.board_id == board_id,
+        )
+    )
+    if len(tasks_check.scalars().all()) != len(all_task_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Some tasks do not belong to this board",
+        )
 
     if len(all_task_ids) != len(set(all_task_ids)):
         raise HTTPException(

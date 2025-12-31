@@ -242,6 +242,7 @@ class BoardViewTask(BaseModel):
     display_order: int
     is_completed: bool
     color: Optional[str] = None
+    board_id: uuid.UUID
     assignees: List[BoardViewAssignee] = []
     subtasks: List[BoardViewSubtask]
     comments: list[BoardViewComment] = []

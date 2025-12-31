@@ -80,6 +80,11 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    board_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("boards.id"),
+        index=True,
+        nullable=False,
+    )
     column_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("columns.id"))
 
     title: Mapped[str] = mapped_column(String)
@@ -105,6 +110,7 @@ class Task(Base):
         ForeignKey("users.id"), nullable=True)
 
     column: Mapped["Column"] = relationship(back_populates="tasks")
+    board: Mapped["Board"] = relationship()
     creator: Mapped["User"] = relationship()
     subtasks: Mapped[list["Subtask"]] = relationship(back_populates="task")
     comments: Mapped[list["Comment"]] = relationship(back_populates="task")
