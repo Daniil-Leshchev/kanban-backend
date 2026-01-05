@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, delete, update
 from app.models import Task as TaskModel
 from app.models import TaskAssignee as TaskAssigneeModel
+from app.models import Column as ColumnModel
 from app.schemas import Task, TaskCreate, TaskUpdate
 from app.schemas import TaskAssignee
 from app.dependencies.db import get_db
@@ -34,10 +35,19 @@ async def create_task(
         .values(display_order=TaskModel.display_order - 99999)
     )
 
+    result = await db.execute(
+        select(ColumnModel).where(ColumnModel.id == data.column_id)
+    )
+    column = result.scalar_one_or_none()
+
+    if column is None:
+        raise HTTPException(status_code=400, detail="Column not found")
+
     obj = TaskModel(
         id=uuid.uuid4(),
         title=data.title,
         column_id=data.column_id,
+        board_id=column.board_id,
         display_order=0,
     )
 
