@@ -244,6 +244,7 @@ async def get_board_view(
                 id=col.id,
                 title=col.title,
                 display_order=col.display_order,
+                color=col.color,
                 tasks=tasks_by_column.get(col.id, []),
             )
         )

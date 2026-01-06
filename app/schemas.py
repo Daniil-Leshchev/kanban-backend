@@ -252,6 +252,7 @@ class BoardViewColumn(BaseModel):
     id: uuid.UUID
     title: str
     display_order: int
+    color: str | None
     tasks: List[BoardViewTask]
 
 
