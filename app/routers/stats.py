@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import TypedDict
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -182,12 +182,10 @@ async def board_stats_productivity(
             "active_ratio": 0.0,
         }
 
-    # completed: фильтруем по completed_at
     filters_completed: list = [
         Task.column_id.in_(column_ids),
         Task.completed_at.is_not(None),
     ]
-    # active: фильтруем по created_at (попадание в период по созданию)
     filters_active: list = [
         Task.column_id.in_(column_ids),
         Task.completed_at.is_(None),
@@ -225,6 +223,97 @@ async def board_stats_productivity(
     }
 
 
+@router.get("/{board_id}/stats/productivity/timeline")
+async def board_stats_productivity_timeline(
+    board_id: uuid.UUID,
+    date_from: datetime = Query(...),
+    date_to: datetime = Query(...),
+    step: str = Query("week", regex="^(day|week)$"),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, object]]:
+    board_exists = await db.scalar(
+        select(func.count()).select_from(Board).where(Board.id == board_id)
+    )
+    if not board_exists:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    columns_result = await db.execute(
+        select(BoardColumn.id).where(BoardColumn.board_id == board_id)
+    )
+    column_ids = [row.id for row in columns_result.all()]
+
+    if not column_ids:
+        return []
+
+    if date_from.tzinfo is None:
+        date_from = date_from.replace(tzinfo=timezone.utc)
+    else:
+        date_from = date_from.astimezone(timezone.utc)
+    if date_to.tzinfo is None:
+        date_to = date_to.replace(tzinfo=timezone.utc)
+    else:
+        date_to = date_to.astimezone(timezone.utc)
+
+    from datetime import timedelta
+
+    delta = timedelta(days=1) if step == "day" else timedelta(days=7)
+
+    dates = []
+    current_date = date_from
+    while current_date <= date_to:
+        dates.append(current_date)
+        current_date += delta
+
+    response = []
+
+    tasks_query = await db.execute(
+        select(
+            Task.created_at,
+            Task.completed_at,
+        ).where(Task.column_id.in_(column_ids))
+    )
+    tasks = tasks_query.all()
+
+    tasks_data = [(t.created_at, t.completed_at) for t in tasks]
+
+    for d in dates:
+        total = 0
+        completed = 0
+        active = 0
+
+        for created_at, completed_at in tasks_data:
+            if created_at is not None and created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            elif created_at is not None:
+                created_at = created_at.astimezone(timezone.utc)
+
+            if completed_at is not None and completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=timezone.utc)
+            elif completed_at is not None:
+                completed_at = completed_at.astimezone(timezone.utc)
+
+            if created_at is not None and created_at <= d:
+                total += 1
+                if completed_at is not None and completed_at <= d:
+                    completed += 1
+                elif completed_at is None or completed_at > d:
+                    active += 1
+
+        completed_ratio = (completed / total) if total > 0 else 0.0
+        active_ratio = (active / total) if total > 0 else 0.0
+
+        response.append({
+            "date": d.date().isoformat(),
+            "total": total,
+            "completed": completed,
+            "active": active,
+            "completed_ratio": completed_ratio,
+            "active_ratio": active_ratio,
+        })
+
+    return response
+
+
 @router.get("/{board_id}/stats/workload")
 async def board_stats_workload(
     board_id: uuid.UUID,
@@ -246,7 +335,6 @@ async def board_stats_workload(
     if not column_ids:
         return []
 
-    # Нагрузка = сколько АКТИВНЫХ задач назначено пользователю
     query = (
         select(
             User.id.label("user_id"),
