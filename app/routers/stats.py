@@ -321,6 +321,7 @@ async def board_stats_time_by_user(
             Task.completed_at.is_not(None),
         )
         .group_by(TaskAssignee.user_id, User.name)
+        .order_by(func.sum(func.extract("epoch", Task.completed_at - Task.started_at)).desc())
     )
 
     result = await db.execute(query)
@@ -370,6 +371,7 @@ async def board_stats_completed_tasks_by_user(
             Task.completed_at.is_not(None),
         )
         .group_by(TaskAssignee.user_id, User.name)
+        .order_by(func.count(Task.id).desc())
     )
 
     result = await db.execute(query)
