@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models import Board, Column as BoardColumn, Task, TaskAssignee, User
 from app.dependencies.db import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,7 +63,7 @@ async def board_stats_summary(
     )
     tasks = tasks_result.all()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     total = len(tasks)
     completed = 0
@@ -245,7 +245,7 @@ async def board_stats_workload(
     )
     rows = result.all()
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     workload: dict[uuid.UUID, WorkloadItem] = {}
 
