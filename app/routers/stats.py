@@ -1,19 +1,15 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
-from app.models import Board, Column as BoardColumn, Task, TaskAssignee, User
-from app.dependencies.db import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from fastapi import APIRouter, Depends, HTTPException
-import uuid
 from typing import TypedDict
+import uuid
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-class WorkloadItem(TypedDict):
-    user_id: uuid.UUID
-    name: str
-    active: int
-    completed: int
-    overdue: int
+from app.dependencies.db import get_db
+from app.models import Board, Column as BoardColumn, Task, TaskAssignee, User
 
 
 class PriorityStats(TypedDict):
@@ -21,6 +17,21 @@ class PriorityStats(TypedDict):
     total: int
     completed: int
     active: int
+
+
+class ProductivityStats(TypedDict):
+    total: int
+    completed: int
+    active: int
+    completed_ratio: float
+    active_ratio: float
+
+
+class WorkloadStatsItem(TypedDict):
+    user_id: uuid.UUID
+    name: str
+    assigned: int
+    workload_ratio: float
 
 
 router = APIRouter()
@@ -38,8 +49,7 @@ async def board_stats_summary(
         raise HTTPException(status_code=404, detail="Board not found")
 
     columns_result = await db.execute(
-        select(BoardColumn.id, BoardColumn.title).where(
-            BoardColumn.board_id == board_id)
+        select(BoardColumn.id, BoardColumn.title).where(BoardColumn.board_id == board_id)
     )
     columns = columns_result.all()
 
@@ -120,10 +130,7 @@ async def board_stats_priorities(
         return []
 
     tasks_result = await db.execute(
-        select(
-            Task.priority,
-            Task.completed_at,
-        ).where(Task.column_id.in_(column_ids))
+        select(Task.priority, Task.completed_at).where(Task.column_id.in_(column_ids))
     )
     tasks = tasks_result.all()
 
@@ -138,6 +145,7 @@ async def board_stats_priorities(
                 "completed": 0,
                 "active": 0,
             }
+
         stats[priority]["total"] += 1
         if task.completed_at is not None:
             stats[priority]["completed"] += 1
@@ -153,7 +161,7 @@ async def board_stats_productivity(
     db: AsyncSession = Depends(get_db),
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-):
+) -> ProductivityStats:
     board_exists = await db.scalar(
         select(func.count()).select_from(Board).where(Board.id == board_id)
     )
@@ -170,14 +178,16 @@ async def board_stats_productivity(
             "total": 0,
             "completed": 0,
             "active": 0,
-            "completed_ratio": 0,
-            "active_ratio": 0,
+            "completed_ratio": 0.0,
+            "active_ratio": 0.0,
         }
 
+    # completed: фильтруем по completed_at
     filters_completed: list = [
         Task.column_id.in_(column_ids),
         Task.completed_at.is_not(None),
     ]
+    # active: фильтруем по created_at (попадание в период по созданию)
     filters_active: list = [
         Task.column_id.in_(column_ids),
         Task.completed_at.is_(None),
@@ -191,14 +201,10 @@ async def board_stats_productivity(
         filters_completed.append(Task.completed_at <= date_to)
         filters_active.append(Task.created_at <= date_to)
 
-    completed = await db.scalar(
-        select(func.count()).where(and_(*filters_completed))
+    completed = (
+        await db.scalar(select(func.count()).where(and_(*filters_completed)))
     ) or 0
-
-    active = await db.scalar(
-        select(func.count()).where(and_(*filters_active))
-    ) or 0
-
+    active = (await db.scalar(select(func.count()).where(and_(*filters_active)))) or 0
     total = completed + active
 
     if total == 0:
@@ -206,8 +212,8 @@ async def board_stats_productivity(
             "total": 0,
             "completed": 0,
             "active": 0,
-            "completed_ratio": 0,
-            "active_ratio": 0,
+            "completed_ratio": 0.0,
+            "active_ratio": 0.0,
         }
 
     return {
@@ -225,7 +231,7 @@ async def board_stats_workload(
     db: AsyncSession = Depends(get_db),
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-):
+) -> list[WorkloadStatsItem]:
     board_exists = await db.scalar(
         select(func.count()).select_from(Board).where(Board.id == board_id)
     )
@@ -240,57 +246,43 @@ async def board_stats_workload(
     if not column_ids:
         return []
 
-    result = await db.execute(
+    # Нагрузка = сколько АКТИВНЫХ задач назначено пользователю
+    query = (
         select(
-            Task.completed_at,
-            Task.created_at,
             TaskAssignee.user_id,
             User.name,
+            func.count(Task.id).label("assigned_count"),
         )
-        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+        .join(Task, Task.id == TaskAssignee.task_id)
         .join(User, User.id == TaskAssignee.user_id)
-        .where(Task.column_id.in_(column_ids))
+        .where(
+            Task.column_id.in_(column_ids),
+            Task.completed_at.is_(None),
+        )
+        .group_by(TaskAssignee.user_id, User.name)
     )
 
+    if date_from is not None:
+        query = query.where(Task.created_at >= date_from)
+
+    if date_to is not None:
+        query = query.where(Task.created_at <= date_to)
+
+    result = await db.execute(query)
     rows = result.all()
 
-    stats: dict[uuid.UUID, dict] = {}
+    total_active_assigned = sum(row.assigned_count for row in rows)
 
+    response: list[WorkloadStatsItem] = []
     for row in rows:
-        user_id = row.user_id
-        if user_id not in stats:
-            stats[user_id] = {
-                "user_id": user_id,
+        ratio = row.assigned_count / total_active_assigned if total_active_assigned else 0.0
+        response.append(
+            {
+                "user_id": row.user_id,
                 "name": row.name,
-                "total": 0,
-                "completed": 0,
-                "active": 0,
+                "assigned": int(row.assigned_count),
+                "workload_ratio": ratio,
             }
-
-        if row.completed_at:
-            if date_from and row.completed_at < date_from:
-                continue
-            if date_to and row.completed_at > date_to:
-                continue
-            stats[user_id]["completed"] += 1
-            stats[user_id]["total"] += 1
-        else:
-            if date_from and row.created_at < date_from:
-                continue
-            if date_to and row.created_at > date_to:
-                continue
-            stats[user_id]["active"] += 1
-            stats[user_id]["total"] += 1
-
-    response = []
-    for item in stats.values():
-        total = item["total"]
-        if total == 0:
-            item["completed_ratio"] = 0
-            item["active_ratio"] = 0
-        else:
-            item["completed_ratio"] = item["completed"] / total
-            item["active_ratio"] = item["active"] / total
-        response.append(item)
+        )
 
     return response
