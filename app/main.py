@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 from app.routers import (
-    users, boards, columns, tasks, subtasks, comments, attachments, members
+    users, boards, columns, tasks, subtasks, comments, attachments, members, stats
 )
 
 app = FastAPI(title="Kanban API")
@@ -33,6 +33,7 @@ app.include_router(comments.router, prefix="/comments", tags=["comments"])
 app.include_router(attachments.router,
                    prefix="/attachments", tags=["attachments"])
 app.include_router(members.router, prefix="/members", tags=["board_members"])
+app.include_router(stats.router, prefix="/boards", tags=["stats"])
 
 
 @app.get("/health/db")
