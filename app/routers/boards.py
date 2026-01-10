@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update
+from sqlalchemy import select, delete, update, func
 import uuid
 from app.dependencies.db import get_db
 from app.models import Board, User, BoardMember, Column, Task, Subtask, TaskAssignee, Comment
@@ -305,6 +305,25 @@ async def reorder_board(
             detail="Duplicate task_ids in reorder payload",
         )
 
+    tasks_before_result = await db.execute(
+        select(Task.id, Task.column_id)
+        .where(Task.id.in_(all_task_ids))
+    )
+    task_old_column: dict[uuid.UUID, uuid.UUID] = {
+        row.id: row.column_id for row in tasks_before_result.all()
+    }
+
+    columns_titles_result = await db.execute(
+        select(Column.id, Column.title)
+        .where(Column.id.in_(board_column_ids))
+    )
+    column_titles: dict[uuid.UUID, str] = {
+        row.id: row.title for row in columns_titles_result.all()
+    }
+
+    IN_PROGRESS_TITLES = {"В процессе"}
+    DONE_TITLES = {"Готово"}
+
     affected_column_ids = {col.column_id for col in payload.columns}
 
     await db.execute(
@@ -315,13 +334,32 @@ async def reorder_board(
 
     for col in payload.columns:
         for index, task_id in enumerate(col.task_ids):
+            old_column_id = task_old_column.get(task_id)
+            new_column_id = col.column_id
+
+            old_title = column_titles.get(old_column_id)
+            new_title = column_titles.get(new_column_id)
+
+            values: dict = {
+                "column_id": new_column_id,
+                "display_order": index,
+            }
+
+            if old_title not in IN_PROGRESS_TITLES and new_title in IN_PROGRESS_TITLES:
+                values["started_at"] = func.now()
+
+            if new_title in DONE_TITLES:
+                values["is_completed"] = True
+                values["completed_at"] = func.now()
+
+            if old_title in DONE_TITLES and new_title not in DONE_TITLES:
+                values["is_completed"] = False
+                values["completed_at"] = None
+
             await db.execute(
                 update(Task)
                 .where(Task.id == task_id)
-                .values(
-                    column_id=col.column_id,
-                    display_order=index,
-                )
+                .values(**values)
             )
 
     await db.commit()

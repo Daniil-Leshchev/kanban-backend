@@ -106,6 +106,14 @@ class Task(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+    started_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"), nullable=True)
 
@@ -117,7 +125,7 @@ class Task(Base):
     attachments: Mapped[list["Attachment"]
                         ] = relationship(back_populates="task")
     assignees: Mapped[list["TaskAssignee"]
-                      ] = relationship(back_populates="task")
+                      ] = relationship(back_populates="assignees")
 
 
 class Subtask(Base):
