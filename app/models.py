@@ -125,7 +125,7 @@ class Task(Base):
     attachments: Mapped[list["Attachment"]
                         ] = relationship(back_populates="task")
     assignees: Mapped[list["TaskAssignee"]
-                      ] = relationship(back_populates="assignees")
+                      ] = relationship(back_populates="task")
 
 
 class Subtask(Base):
