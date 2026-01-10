@@ -5,7 +5,7 @@ from typing import TypedDict
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.db import get_db
@@ -249,24 +249,32 @@ async def board_stats_workload(
     # Нагрузка = сколько АКТИВНЫХ задач назначено пользователю
     query = (
         select(
-            TaskAssignee.user_id,
+            User.id.label("user_id"),
             User.name,
             func.count(Task.id).label("assigned_count"),
         )
-        .join(Task, Task.id == TaskAssignee.task_id)
-        .join(User, User.id == TaskAssignee.user_id)
-        .where(
-            Task.column_id.in_(column_ids),
-            Task.completed_at.is_(None),
+        .select_from(User)
+        .outerjoin(TaskAssignee, TaskAssignee.user_id == User.id)
+        .outerjoin(
+            Task,
+            and_(
+                Task.id == TaskAssignee.task_id,
+                Task.column_id.in_(column_ids),
+                Task.completed_at.is_(None),
+            ),
         )
-        .group_by(TaskAssignee.user_id, User.name)
+        .group_by(User.id, User.name)
     )
 
     if date_from is not None:
-        query = query.where(Task.created_at >= date_from)
+        query = query.where(
+            or_(Task.created_at >= date_from, Task.id.is_(None))
+        )
 
     if date_to is not None:
-        query = query.where(Task.created_at <= date_to)
+        query = query.where(
+            or_(Task.created_at <= date_to, Task.id.is_(None))
+        )
 
     result = await db.execute(query)
     rows = result.all()
