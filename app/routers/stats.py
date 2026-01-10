@@ -286,3 +286,101 @@ async def board_stats_workload(
         )
 
     return response
+
+
+@router.get("/{board_id}/stats/time_by_user")
+async def board_stats_time_by_user(
+    board_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, object]]:
+    board_exists = await db.scalar(
+        select(func.count()).select_from(Board).where(Board.id == board_id)
+    )
+    if not board_exists:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    columns_result = await db.execute(
+        select(BoardColumn.id).where(BoardColumn.board_id == board_id)
+    )
+    column_ids = [row.id for row in columns_result.all()]
+
+    if not column_ids:
+        return []
+
+    query = (
+        select(
+            TaskAssignee.user_id,
+            User.name,
+            func.sum(func.extract("epoch", Task.completed_at - Task.started_at)).label("seconds"),
+        )
+        .join(Task, Task.id == TaskAssignee.task_id)
+        .join(User, User.id == TaskAssignee.user_id)
+        .where(
+            Task.column_id.in_(column_ids),
+            Task.started_at.is_not(None),
+            Task.completed_at.is_not(None),
+        )
+        .group_by(TaskAssignee.user_id, User.name)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    response = []
+    for row in rows:
+        hours = (row.seconds or 0) / 3600
+        response.append({
+            "user_id": row.user_id,
+            "name": row.name,
+            "hours": hours,
+        })
+
+    return response
+
+
+@router.get("/{board_id}/stats/completed_tasks_by_user")
+async def board_stats_completed_tasks_by_user(
+    board_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, object]]:
+    board_exists = await db.scalar(
+        select(func.count()).select_from(Board).where(Board.id == board_id)
+    )
+    if not board_exists:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    columns_result = await db.execute(
+        select(BoardColumn.id).where(BoardColumn.board_id == board_id)
+    )
+    column_ids = [row.id for row in columns_result.all()]
+
+    if not column_ids:
+        return []
+
+    query = (
+        select(
+            TaskAssignee.user_id,
+            User.name,
+            func.count(Task.id).label("completed"),
+        )
+        .join(Task, Task.id == TaskAssignee.task_id)
+        .join(User, User.id == TaskAssignee.user_id)
+        .where(
+            Task.column_id.in_(column_ids),
+            Task.completed_at.is_not(None),
+        )
+        .group_by(TaskAssignee.user_id, User.name)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    response = []
+    for row in rows:
+        response.append({
+            "user_id": row.user_id,
+            "name": row.name,
+            "completed": row.completed,
+        })
+
+    return response
