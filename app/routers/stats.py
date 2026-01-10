@@ -16,6 +16,13 @@ class WorkloadItem(TypedDict):
     overdue: int
 
 
+class PriorityStats(TypedDict):
+    priority: str
+    total: int
+    completed: int
+    active: int
+
+
 router = APIRouter()
 
 
@@ -110,11 +117,7 @@ async def board_stats_priorities(
     column_ids = [row.id for row in columns_result.all()]
 
     if not column_ids:
-        return {
-            "priorities": {},
-            "completed": {},
-            "active": {},
-        }
+        return []
 
     tasks_result = await db.execute(
         select(
@@ -124,27 +127,24 @@ async def board_stats_priorities(
     )
     tasks = tasks_result.all()
 
-    priorities_total: dict[str, int] = {}
-    priorities_completed: dict[str, int] = {}
-    priorities_active: dict[str, int] = {}
+    stats: dict[str, PriorityStats] = {}
 
     for task in tasks:
         priority = task.priority or "undefined"
-
-        priorities_total[priority] = priorities_total.get(priority, 0) + 1
-
+        if priority not in stats:
+            stats[priority] = {
+                "priority": priority,
+                "total": 0,
+                "completed": 0,
+                "active": 0,
+            }
+        stats[priority]["total"] += 1
         if task.completed_at is not None:
-            priorities_completed[priority] = priorities_completed.get(
-                priority, 0) + 1
+            stats[priority]["completed"] += 1
         else:
-            priorities_active[priority] = priorities_active.get(
-                priority, 0) + 1
+            stats[priority]["active"] += 1
 
-    return {
-        "priorities": priorities_total,
-        "completed": priorities_completed,
-        "active": priorities_active,
-    }
+    return list(stats.values())
 
 
 @router.get("/{board_id}/stats/productivity")
@@ -229,48 +229,54 @@ async def board_stats_workload(
     column_ids = [row.id for row in columns_result.all()]
 
     if not column_ids:
-        return []
+        return {
+            "total": 0,
+            "completed": 0,
+            "active": 0,
+            "completed_ratio": 0,
+            "active_ratio": 0,
+        }
 
-    result = await db.execute(
-        select(
-            Task.id,
-            Task.completed_at,
-            Task.deadline,
-            TaskAssignee.user_id,
-            User.name,
-        )
-        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
-        .join(User, User.id == TaskAssignee.user_id)
-        .where(Task.column_id.in_(column_ids))
+    filters_completed: list = [
+        Task.column_id.in_(column_ids),
+        Task.completed_at.is_not(None),
+    ]
+    filters_active: list = [
+        Task.column_id.in_(column_ids),
+        Task.completed_at.is_(None),
+    ]
+
+    if date_from is not None:
+        filters_completed.append(Task.completed_at >= date_from)
+        filters_active.append(Task.created_at >= date_from)
+
+    if date_to is not None:
+        filters_completed.append(Task.completed_at <= date_to)
+        filters_active.append(Task.created_at <= date_to)
+
+    completed_count_result = await db.scalar(
+        select(func.count()).where(and_(*filters_completed))
     )
-    rows = result.all()
+    completed_count = completed_count_result or 0
 
-    now = datetime.now(timezone.utc)
+    active_count_result = await db.scalar(
+        select(func.count()).where(and_(*filters_active))
+    )
+    active_count = active_count_result or 0
 
-    workload: dict[uuid.UUID, WorkloadItem] = {}
+    total = completed_count + active_count
 
-    for row in rows:
-        user_id = row.user_id
-        if user_id not in workload:
-            workload[user_id] = {
-                "user_id": user_id,
-                "name": row.name,
-                "active": 0,
-                "completed": 0,
-                "overdue": 0,
-            }
+    if total == 0:
+        completed_ratio = 0
+        active_ratio = 0
+    else:
+        completed_ratio = completed_count / total
+        active_ratio = active_count / total
 
-        if row.completed_at is not None:
-            if date_from and row.completed_at < date_from:
-                continue
-            if date_to and row.completed_at > date_to:
-                continue
-            workload[user_id]["completed"] += 1
-            continue
-
-        workload[user_id]["active"] += 1
-
-        if row.completed_at is None and row.deadline and row.deadline < now:
-            workload[user_id]["overdue"] += 1
-
-    return list(workload.values())
+    return {
+        "total": total,
+        "completed": completed_count,
+        "active": active_count,
+        "completed_ratio": completed_ratio,
+        "active_ratio": active_ratio,
+    }
