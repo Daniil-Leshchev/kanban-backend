@@ -254,7 +254,7 @@ async def board_stats_productivity_timeline(
     else:
         date_to = date_to.astimezone(timezone.utc)
 
-    from datetime import timedelta
+    from datetime import timedelta, time
 
     delta = timedelta(days=1) if step == "day" else timedelta(days=7)
 
@@ -281,6 +281,12 @@ async def board_stats_productivity_timeline(
         completed = 0
         active = 0
 
+        end_of_day = datetime.combine(
+            d.date(),
+            time.max,
+            tzinfo=timezone.utc
+        )
+
         for created_at, completed_at in tasks_data:
             if created_at is not None and created_at.tzinfo is None:
                 created_at = created_at.replace(tzinfo=timezone.utc)
@@ -292,11 +298,11 @@ async def board_stats_productivity_timeline(
             elif completed_at is not None:
                 completed_at = completed_at.astimezone(timezone.utc)
 
-            if created_at is not None and created_at <= d:
+            if created_at is not None and created_at <= end_of_day:
                 total += 1
-                if completed_at is not None and completed_at <= d:
+                if completed_at is not None and completed_at <= end_of_day:
                     completed += 1
-                elif completed_at is None or completed_at > d:
+                elif completed_at is None or completed_at > end_of_day:
                     active += 1
 
         completed_ratio = (completed / total) if total > 0 else 0.0
