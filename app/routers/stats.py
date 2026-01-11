@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from datetime import timedelta, time
+
+# Local timezone for calculations (UTC+5)
+LOCAL_TZ = timezone(timedelta(hours=5))
 from typing import TypedDict
 import uuid
 
@@ -245,16 +249,6 @@ async def board_stats_productivity_timeline(
     if not column_ids:
         return []
 
-    if date_from.tzinfo is None:
-        date_from = date_from.replace(tzinfo=timezone.utc)
-    else:
-        date_from = date_from.astimezone(timezone.utc)
-    if date_to.tzinfo is None:
-        date_to = date_to.replace(tzinfo=timezone.utc)
-    else:
-        date_to = date_to.astimezone(timezone.utc)
-
-    from datetime import timedelta, time
 
     delta = timedelta(days=1) if step == "day" else timedelta(days=7)
 
@@ -284,19 +278,15 @@ async def board_stats_productivity_timeline(
         end_of_day = datetime.combine(
             d.date(),
             time.max,
-            tzinfo=timezone.utc
+            tzinfo=LOCAL_TZ
         )
 
         for created_at, completed_at in tasks_data:
             if created_at is not None and created_at.tzinfo is None:
-                created_at = created_at.replace(tzinfo=timezone.utc)
-            elif created_at is not None:
-                created_at = created_at.astimezone(timezone.utc)
+                created_at = created_at.replace(tzinfo=LOCAL_TZ)
 
             if completed_at is not None and completed_at.tzinfo is None:
-                completed_at = completed_at.replace(tzinfo=timezone.utc)
-            elif completed_at is not None:
-                completed_at = completed_at.astimezone(timezone.utc)
+                completed_at = completed_at.replace(tzinfo=LOCAL_TZ)
 
             if created_at is not None and created_at <= end_of_day:
                 total += 1
