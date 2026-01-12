@@ -331,34 +331,46 @@ async def board_stats_workload(
     if not column_ids:
         return []
 
-    query = (
+    # 1. Все пользователи, связанные с доской (через любые задачи)
+    users_subquery = (
         select(
-            User.id.label("user_id"),
-            User.name,
-            func.count(Task.id).label("assigned_count"),
+            TaskAssignee.user_id.label("user_id"),
+            User.name.label("name"),
         )
-        .select_from(User)
-        .outerjoin(TaskAssignee, TaskAssignee.user_id == User.id)
-        .outerjoin(
-            Task,
-            and_(
-                Task.id == TaskAssignee.task_id,
-                Task.column_id.in_(column_ids),
-                Task.completed_at.is_(None),
-            ),
-        )
-        .group_by(User.id, User.name)
+        .join(Task, Task.id == TaskAssignee.task_id)
+        .join(User, User.id == TaskAssignee.user_id)
+        .where(Task.column_id.in_(column_ids))
+        .distinct()
+        .subquery()
     )
 
-    if date_from is not None:
-        query = query.where(
-            or_(Task.created_at >= date_from, Task.id.is_(None))
+    # 2. Количество активных задач по пользователю
+    active_tasks_subquery = (
+        select(
+            TaskAssignee.user_id.label("user_id"),
+            func.count(Task.id).label("assigned_count"),
         )
+        .join(Task, Task.id == TaskAssignee.task_id)
+        .where(
+            Task.column_id.in_(column_ids),
+            Task.completed_at.is_(None),
+        )
+        .group_by(TaskAssignee.user_id)
+        .subquery()
+    )
 
-    if date_to is not None:
-        query = query.where(
-            or_(Task.created_at <= date_to, Task.id.is_(None))
+    # 3. Финальный запрос
+    query = (
+        select(
+            users_subquery.c.user_id,
+            users_subquery.c.name,
+            func.coalesce(active_tasks_subquery.c.assigned_count, 0).label("assigned_count"),
         )
+        .outerjoin(
+            active_tasks_subquery,
+            users_subquery.c.user_id == active_tasks_subquery.c.user_id,
+        )
+    )
 
     result = await db.execute(query)
     rows = result.all()
@@ -367,13 +379,16 @@ async def board_stats_workload(
 
     response: list[WorkloadStatsItem] = []
     for row in rows:
-        ratio = row.assigned_count / total_active_assigned if total_active_assigned else 0.0
         response.append(
             {
                 "user_id": row.user_id,
                 "name": row.name,
                 "assigned": int(row.assigned_count),
-                "workload_ratio": ratio,
+                "workload_ratio": (
+                    row.assigned_count / total_active_assigned
+                    if total_active_assigned > 0
+                    else 0.0
+                ),
             }
         )
 
