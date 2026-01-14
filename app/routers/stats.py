@@ -270,8 +270,12 @@ async def board_stats_productivity_timeline(
     tasks_data = [(t.created_at, t.completed_at) for t in tasks]
 
     for d in dates:
-        period_start = d
-        period_end = d + delta
+        if d.tzinfo is None:
+            period_start = d.replace(tzinfo=LOCAL_TZ)
+        else:
+            period_start = d.astimezone(LOCAL_TZ)
+
+        period_end = period_start + delta
 
         completed = 0
         active = 0
