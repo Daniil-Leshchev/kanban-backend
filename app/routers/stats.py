@@ -1,17 +1,19 @@
 from __future__ import annotations
-from app.models import Board, Column as BoardColumn, Task, TaskAssignee, User
-from app.dependencies.db import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, func, select, or_
-from fastapi import APIRouter, Depends, HTTPException, Query
-import uuid
-from typing import TypedDict
 
 from datetime import datetime, timezone
 from datetime import timedelta, time
 
 # Local timezone for calculations (UTC+5)
 LOCAL_TZ = timezone(timedelta(hours=5))
+from typing import TypedDict
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies.db import get_db
+from app.models import Board, Column as BoardColumn, Task, TaskAssignee, User
 
 
 class PriorityStats(TypedDict):
@@ -51,8 +53,7 @@ async def board_stats_summary(
         raise HTTPException(status_code=404, detail="Board not found")
 
     columns_result = await db.execute(
-        select(BoardColumn.id, BoardColumn.title).where(
-            BoardColumn.board_id == board_id)
+        select(BoardColumn.id, BoardColumn.title).where(BoardColumn.board_id == board_id)
     )
     columns = columns_result.all()
 
@@ -133,8 +134,7 @@ async def board_stats_priorities(
         return []
 
     tasks_result = await db.execute(
-        select(Task.priority, Task.completed_at).where(
-            Task.column_id.in_(column_ids))
+        select(Task.priority, Task.completed_at).where(Task.column_id.in_(column_ids))
     )
     tasks = tasks_result.all()
 
@@ -249,6 +249,7 @@ async def board_stats_productivity_timeline(
     if not column_ids:
         return []
 
+
     delta = timedelta(days=1) if step == "day" else timedelta(days=7)
 
     dates = []
@@ -270,15 +271,15 @@ async def board_stats_productivity_timeline(
     tasks_data = [(t.created_at, t.completed_at) for t in tasks]
 
     for d in dates:
-        if d.tzinfo is None:
-            period_start = d.replace(tzinfo=LOCAL_TZ)
-        else:
-            period_start = d.astimezone(LOCAL_TZ)
-
-        period_end = period_start + delta
-
+        total = 0
         completed = 0
         active = 0
+
+        end_of_day = datetime.combine(
+            d.date(),
+            time.max,
+            tzinfo=LOCAL_TZ
+        )
 
         for created_at, completed_at in tasks_data:
             if created_at is not None and created_at.tzinfo is None:
@@ -287,15 +288,12 @@ async def board_stats_productivity_timeline(
             if completed_at is not None and completed_at.tzinfo is None:
                 completed_at = completed_at.replace(tzinfo=LOCAL_TZ)
 
-            if completed_at is not None and period_start < completed_at <= period_end:
-                completed += 1
-
-            if created_at is not None and created_at <= period_end and (
-                completed_at is None or completed_at > period_end
-            ):
-                active += 1
-
-        total = completed + active
+            if created_at is not None and created_at <= end_of_day:
+                total += 1
+                if completed_at is not None and completed_at <= end_of_day:
+                    completed += 1
+                elif completed_at is None or completed_at > end_of_day:
+                    active += 1
 
         completed_ratio = (completed / total) if total > 0 else 0.0
         active_ratio = (active / total) if total > 0 else 0.0
@@ -366,8 +364,7 @@ async def board_stats_workload(
         select(
             users_subquery.c.user_id,
             users_subquery.c.name,
-            func.coalesce(active_tasks_subquery.c.assigned_count,
-                          0).label("assigned_count"),
+            func.coalesce(active_tasks_subquery.c.assigned_count, 0).label("assigned_count"),
         )
         .outerjoin(
             active_tasks_subquery,
@@ -421,8 +418,7 @@ async def board_stats_time_by_user(
         select(
             TaskAssignee.user_id,
             User.name,
-            func.sum(func.extract("epoch", Task.completed_at -
-                     Task.started_at)).label("seconds"),
+            func.sum(func.extract("epoch", Task.completed_at - Task.started_at)).label("seconds"),
         )
         .join(Task, Task.id == TaskAssignee.task_id)
         .join(User, User.id == TaskAssignee.user_id)
